@@ -1,49 +1,55 @@
-RS App (Hospital Application) - Docker Deployment Guide
+🏥 RS App Deployment Guide
 
-Panduan ini menjelaskan cara menjalankan aplikasi RS App (Frontend & Backend) beserta database PostgreSQL menggunakan Docker dan Docker Network.
+Panduan lengkap untuk men-deploy aplikasi Rumah Sakit (Frontend, Backend, & Database) menggunakan Docker Container.
 
-Prasyarat
+📂 Struktur Folder
 
-Pastikan struktur folder proyek Anda terlihat seperti ini:
+Pastikan Anda berada di root folder rs-app dan struktur direktori terlihat seperti ini:
 
 rs-app/
-├── rs-app-be/       # Source code Backend (terdapat Dockerfile)
-├── rs-app-fe/       # Source code Frontend (terdapat Dockerfile)
-└── ...
+├── rs-app-be/       # Backend (Node.js/Express + Dockerfile)
+├── rs-app-fe/       # Frontend (React + Dockerfile)
+└── README.md
 
+
+🚀 Langkah Instalasi
 
 1. Buat Docker Network
 
-Langkah pertama adalah membuat network agar container Database, Backend, dan Frontend dapat saling berkomunikasi.
+Kita perlu membuat jaringan virtual agar semua container (DB, Backend, Frontend) bisa saling berkomunikasi.
 
 docker network create rs-net
 
 
-2. Setup Database (PostgreSQL)
+2. Jalankan Database (PostgreSQL)
 
-Jalankan container database yang terhubung ke network rs-net.
+Jalankan container database terlebih dahulu agar siap menerima koneksi dari backend.
 
-docker run -d --name db --network rs-net \
+docker run -d \
+  --name db \
+  --network rs-net \
   -e POSTGRES_USER=admin \
   -e POSTGRES_PASSWORD=password123 \
   -e POSTGRES_DB=rs_db \
   -v postgres_data:/var/lib/postgresql/data \
-  -p 5432:5432 postgres:15-alpine
+  -p 5432:5432 \
+  postgres:15-alpine
 
 
 3. Setup Backend
 
-Masuk ke direktori root proyek, lalu build image backend dari folder rs-app-be dan jalankan containernya.
+Masuk ke folder backend, build image, lalu jalankan. Backend akan menghubungi database menggunakan hostname db.
 
 Build Image:
 
 docker build -t rs-backend ./rs-app-be
 
 
-Run Container:
-Perhatikan PGHOST=db, ini memungkinkan backend menghubungi database menggunakan nama container dalam network yang sama.
+Jalankan Container:
 
-docker run -d --name backend --network rs-net \
+docker run -d \
+  --name backend \
+  --network rs-net \
   -p 5000:5000 \
   -e PGHOST=db \
   -e PGUSER=admin \
@@ -53,66 +59,83 @@ docker run -d --name backend --network rs-net \
   rs-backend
 
 
-4. Setup Frontend
+4. Setup Frontend (PENTING ⚠️)
 
-Build image frontend dari folder rs-app-fe dan jalankan containernya.
+Sebelum melakukan build image frontend, Anda harus mengkonfigurasi file .env di dalam folder rs-app-fe agar aplikasi tahu ke mana harus mengirim request API.
 
-Konfigurasi .env (PENTING)
+Pilih salah satu skenario di bawah ini:
 
-Sebelum melakukan build, sesuaikan file .env di dalam folder rs-app-fe.
+🅰️ Skenario A: Menjalankan di Laptop (Localhost)
 
-Skenario 1: Menjalankan di Laptop Sendiri (Localhost)
-Jika Anda menjalankan docker di laptop dan membukanya di browser laptop yang sama:
+Gunakan ini jika Anda menjalankan Docker di laptop dan membuka browser di laptop yang sama.
 
-# File: rs-app-fe/.env
+Buat/Edit file rs-app-fe/.env:
+
 REACT_APP_API_URL=http://localhost:5000
 
 
-Skenario 2: Menjalankan di VM / Server
-Jika docker berjalan di VM/Server dan Anda mengaksesnya dari browser komputer lain, Anda wajib menggunakan IP Address VM tersebut, bukan localhost.
+🅱️ Skenario B: Menjalankan di VM / VPS / Server Kantor
 
-# File: rs-app-fe/.env
-# Ganti 192.168.x.x dengan IP Public atau IP Private VM Anda
+Gunakan ini jika Docker berjalan di server (misal: Proxmox, AWS, DigitalOcean) dan Anda mengakses webnya dari komputer lain. Jangan gunakan localhost.
+
+Buat/Edit file rs-app-fe/.env:
+
+# Ganti 192.168.1.XX dengan IP Address VM Anda
 REACT_APP_API_URL=[http://192.168.1.10:5000](http://192.168.1.10:5000)
 
 
-Build & Run Frontend
+Jalankan Frontend
+
+Setelah .env disesuaikan, jalankan perintah berikut:
 
 Build Image:
 
 docker build -t rs-frontend ./rs-app-fe
 
 
-Run Container:
+Jalankan Container:
 
-docker run -d --name frontend --network rs-net \
-  -p 8080:80 rs-frontend
+docker run -d \
+  --name frontend \
+  --network rs-net \
+  -p 8080:80 \
+  rs-frontend
 
 
-Ringkasan Port
+✅ Ringkasan Akses
+
+Setelah semua container berjalan, Anda bisa mengakses aplikasi melalui:
 
 Service
 
-Internal Port (Container)
+URL Akses
 
-External Port (Host/VM)
+Keterangan
+
+Frontend UI
+
+http://localhost:8080
+
+Atau http://<IP-VM>:8080
+
+Backend API
+
+http://localhost:5000
+
+Atau http://<IP-VM>:5000
 
 Database
 
-5432
+localhost:5432
 
-5432
+Gunakan DBeaver/PgAdmin
 
-Backend
+🛠 Troubleshooting
 
-5000
+Jika frontend tidak bisa mengambil data (Error Network/CORS):
 
-5000
+Cek Console Browser (F12) -> Tab Network.
 
-Frontend
+Pastikan request mengarah ke IP yang benar (bukan localhost jika akses beda device).
 
-80
-
-8080
-
-Akses aplikasi frontend melalui browser di: http://localhost:8080 (atau http://<IP-VM>:8080)
+Jika Anda mengganti isi .env, Anda wajib melakukan Re-Build image frontend (docker build ...) dan menjalankan ulang containernya.
