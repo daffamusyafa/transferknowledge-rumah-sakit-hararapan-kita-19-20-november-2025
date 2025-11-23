@@ -57,6 +57,27 @@ docker run -d --name backend --network rs-net \
 
 Build image frontend dari folder rs-app-fe dan jalankan containernya.
 
+Konfigurasi .env (PENTING)
+
+Sebelum melakukan build, sesuaikan file .env di dalam folder rs-app-fe.
+
+Skenario 1: Menjalankan di Laptop Sendiri (Localhost)
+Jika Anda menjalankan docker di laptop dan membukanya di browser laptop yang sama:
+
+# File: rs-app-fe/.env
+REACT_APP_API_URL=http://localhost:5000
+
+
+Skenario 2: Menjalankan di VM / Server
+Jika docker berjalan di VM/Server dan Anda mengaksesnya dari browser komputer lain, Anda wajib menggunakan IP Address VM tersebut, bukan localhost.
+
+# File: rs-app-fe/.env
+# Ganti 192.168.x.x dengan IP Public atau IP Private VM Anda
+REACT_APP_API_URL=[http://192.168.1.10:5000](http://192.168.1.10:5000)
+
+
+Build & Run Frontend
+
 Build Image:
 
 docker build -t rs-frontend ./rs-app-fe
@@ -68,27 +89,30 @@ docker run -d --name frontend --network rs-net \
   -p 8080:80 rs-frontend
 
 
-5. Konfigurasi Koneksi Frontend ke Backend (.env)
+Ringkasan Port
 
-Agar Frontend dapat menghubungi API Backend, Anda perlu mengatur file .env di dalam folder rs-app-fe sebelum melakukan docker build.
+Service
 
-Terdapat dua cara konfigurasi tergantung strategi deployment Anda:
+Internal Port (Container)
 
-Opsi A: Menggunakan IP Host (Development/Direct Access)
+External Port (Host/VM)
 
-Jika browser pengguna akan mengakses backend secara langsung via IP komputer/server Anda.
+Database
 
-Ubah file .env di rs-app-fe:
+5432
 
-# Ganti dengan IP Address laptop/server Anda (jangan gunakan localhost jika diakses dari device lain)
-VITE_API_URL=[http://192.168.](http://192.168.)x.x:5000
+5432
 
+Backend
 
-Opsi B: Menggunakan Docker Network / Reverse Proxy
+5000
 
-Jika Anda menggunakan Nginx di dalam container frontend untuk mem-proxy request ke backend (biasanya digunakan agar tidak terkena masalah CORS atau untuk single port access).
+5000
 
-Ubah file .env di rs-app-fe menjadi path relatif:
+Frontend
 
-# Request akan diteruskan ke backend via internal network (memerlukan konfigurasi Nginx)
-VITE_API_URL=/api
+80
+
+8080
+
+Akses aplikasi frontend melalui browser di: http://localhost:8080 (atau http://<IP-VM>:8080)
