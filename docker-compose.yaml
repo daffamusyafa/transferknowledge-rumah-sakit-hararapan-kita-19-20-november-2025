@@ -2,10 +2,8 @@ services:
   db:
     image: postgres:15-alpine
     restart: always
-    environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: password123
-      POSTGRES_DB: rs_db
+    env_file:
+      - .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -14,14 +12,14 @@ services:
   backend:
     build: ./rs-app-be
     restart: always
-    ports:
-      - "5000:5000"
     environment:
       PGHOST: db
       PGUSER: admin
       PGPASSWORD: password123
       PGDATABASE: rs_db
       PGPORT: 5432
+    ports:
+      - "5000:5000"
     depends_on:
       - db
 

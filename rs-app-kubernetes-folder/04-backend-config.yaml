@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+data:
+  PGHOST: "db-svc"
+  PGUSER: "admin"
+  PGDATABASE: "rs_db"
+  PGPORT: "5432"

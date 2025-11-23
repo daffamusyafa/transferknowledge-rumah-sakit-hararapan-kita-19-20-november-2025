@@ -2,11 +2,11 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: rs-app
+
 ---
 # ===================================================================
-#  CONFIG & SECRETS
+#  1. CONFIGURATION & SECRETS
 # ===================================================================
-
 apiVersion: v1
 kind: Secret
 metadata:
@@ -42,9 +42,8 @@ stringData:
 
 ---
 # ===================================================================
-#  DATABASE (POSTGRES)
+#  2. DATABASE LAYER (PostgreSQL)
 # ===================================================================
-
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -67,6 +66,8 @@ metadata:
     app: db
 spec:
   replicas: 1
+  strategy:
+    type: Recreate # Diperlukan untuk volume ReadWriteOnce
   selector:
     matchLabels:
       app: db
@@ -86,6 +87,17 @@ spec:
           volumeMounts:
             - name: postgres-storage
               mountPath: /var/lib/postgresql/data
+          # Probe Kesehatan Database
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "admin"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "admin"]
+            initialDelaySeconds: 10
+            periodSeconds: 20
       volumes:
         - name: postgres-storage
           persistentVolumeClaim:
@@ -108,9 +120,8 @@ spec:
 
 ---
 # ===================================================================
-#  BACKEND
+#  3. BACKEND LAYER
 # ===================================================================
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -119,7 +130,13 @@ metadata:
   labels:
     app: backend
 spec:
-  replicas: 1
+  replicas: 3
+  # Strategi Zero Downtime
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: backend
@@ -130,7 +147,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: daffamusyafa/rs-app-be:v1.0
+          image: daffamusyafa/rs-app-be:v1.1
           imagePullPolicy: Always
           ports:
             - containerPort: 5000
@@ -139,6 +156,19 @@ spec:
                 name: backend-config
             - secretRef:
                 name: backend-secret
+          # Probe Kesehatan Backend
+          readinessProbe:
+            tcpSocket:
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: 5000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+
 ---
 apiVersion: v1
 kind: Service
@@ -152,14 +182,12 @@ spec:
     - protocol: TCP
       port: 5000
       targetPort: 5000
-  # Sesuai permintaan Anda
   type: LoadBalancer
 
 ---
 # ===================================================================
-#  FRONTEND
+#  4. FRONTEND LAYER
 # ===================================================================
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -168,7 +196,13 @@ metadata:
   labels:
     app: frontend
 spec:
-  replicas: 1
+  replicas: 3
+  # Strategi Zero Downtime
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: frontend
@@ -183,6 +217,20 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 80
+          # Probe Kesehatan Frontend
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 20
+
 ---
 apiVersion: v1
 kind: Service
@@ -196,5 +244,4 @@ spec:
     - protocol: TCP
       port: 8080
       targetPort: 80
-  # Sesuai permintaan Anda
   type: LoadBalancer

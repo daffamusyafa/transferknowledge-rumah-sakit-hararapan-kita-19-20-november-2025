@@ -1,0 +1,212 @@
+# ===================================================================
+# 1. NAMESPACE
+# ===================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rs-app
+
+---
+# ===================================================================
+# 2. CONFIGURATION & SECRETS
+# ===================================================================
+# ConfigMap untuk Backend (Non-sensitive data)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: rs-app
+data:
+  PGHOST: "db-svc"
+  PGUSER: "admin"
+  PGDATABASE: "rs_db"
+  PGPORT: "5432"
+
+---
+# Secret untuk Database (Sensitive data)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: rs-app
+type: Opaque
+stringData:
+  POSTGRES_USER: "admin"
+  POSTGRES_PASSWORD: "password123"
+  POSTGRES_DB: "rs_db"
+
+---
+# Secret untuk Backend (Sensitive data)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backend-secret
+  namespace: rs-app
+type: Opaque
+stringData:
+  PGPASSWORD: "password123"
+
+---
+# ===================================================================
+# 3. DATABASE TIER (PostgreSQL)
+# ===================================================================
+# Persistent Volume Claim (Storage)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: rs-app
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# Database Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db-deployment
+  namespace: rs-app
+  labels:
+    app: db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: postgres-secret
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+
+---
+# Database Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: db-svc
+  namespace: rs-app
+spec:
+  selector:
+    app: db
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+  type: ClusterIP
+
+---
+# ===================================================================
+# 4. BACKEND TIER
+# ===================================================================
+# Backend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+  namespace: rs-app
+  labels:
+    app: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: daffamusyafa/rs-app-be:v1.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: backend-config
+            - secretRef:
+                name: backend-secret
+
+---
+# Backend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-svc
+  namespace: rs-app
+spec:
+  selector:
+    app: backend
+  ports:
+    - protocol: TCP
+      port: 5000
+      targetPort: 5000
+  # Tipe LoadBalancer (Sesuai permintaan)
+  type: LoadBalancer
+
+---
+# ===================================================================
+# 5. FRONTEND TIER
+# ===================================================================
+# Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deployment
+  namespace: rs-app
+  labels:
+    app: frontend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: daffamusyafa/rs-app-fe:v1.1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+
+---
+# Frontend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-svc
+  namespace: rs-app
+spec:
+  selector:
+    app: frontend
+  ports:
+    - protocol: TCP
+      port: 8080        # Port yang diakses user
+      targetPort: 80    # Port container aplikasi
+  # Tipe LoadBalancer (Sesuai permintaan)
+  type: LoadBalancer
